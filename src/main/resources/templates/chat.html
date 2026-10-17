@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Real-Time Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #e9eff6;
+            --surface: #ffffff;
+            --surface-2: #f3f6fa;
+            --ink: #14213d;
+            --muted: #6b7a90;
+            --line: #e1e8f0;
+            --accent: #0e7c86;
+            --accent-ink: #ffffff;
+            --shadow: 0 24px 60px -24px rgba(20, 33, 61, .35);
+            --ok: #1f9d55;
+            --warn: #d98e04;
+            --bad: #d64545;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0c131b;
+                --surface: #151f2b;
+                --surface-2: #1c2837;
+                --ink: #e8eef6;
+                --muted: #8a9ab0;
+                --line: #243243;
+                --accent: #2bb3a6;
+                --accent-ink: #06201d;
+                --shadow: 0 24px 60px -24px rgba(0, 0, 0, .7);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Figtree", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 760px;
+            height: min(100%, 860px);
+            background: var(--surface);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .top {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .top h1 {
+            font-family: "Bricolage Grotesque", "Figtree", sans-serif;
+            font-weight: 700;
+            font-size: 1.3rem;
+            letter-spacing: -.01em;
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--muted);
+            font-size: .85rem;
+            margin-top: 2px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--warn);
+        }
+
+        .status[data-state="online"] .dot {
+            background: var(--ok);
+            box-shadow: 0 0 0 4px rgba(31, 157, 85, .18);
+        }
+
+        .status[data-state="offline"] .dot {
+            background: var(--bad);
+        }
+
+        .who {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .who button {
+            font: inherit;
+            font-size: .85rem;
+            color: var(--muted);
+            background: none;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+
+        .who button:hover {
+            color: var(--ink);
+            border-color: var(--muted);
+        }
+
+        /* Avatars */
+        .avatar {
+            flex: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: .9rem;
+            user-select: none;
+        }
+
+        /* Messages */
+        .feed {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: var(--surface);
+            scroll-behavior: smooth;
+        }
+
+        .empty {
+            margin: auto;
+            max-width: 280px;
+            text-align: center;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .empty strong {
+            display: block;
+            color: var(--ink);
+            font-family: "Bricolage Grotesque", sans-serif;
+            font-size: 1.15rem;
+            margin-bottom: 4px;
+        }
+
+        .row {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            max-width: 82%;
+        }
+
+        .row.mine {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .row.first {
+            margin-top: 14px;
+        }
+
+        .spacer {
+            width: 36px;
+            flex: none;
+        }
+
+        .col {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .row.mine .col {
+            align-items: flex-end;
+        }
+
+        .name {
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--muted);
+            margin: 0 4px 4px;
+        }
+
+        .bubble {
+            background: var(--surface-2);
+            padding: 10px 14px;
+            border-radius: 18px 18px 18px 6px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .row.mine .bubble {
+            background: var(--accent);
+            color: var(--accent-ink);
+            border-radius: 18px 18px 6px 18px;
+        }
+
+        .time {
+            font-size: .72rem;
+            color: var(--muted);
+            margin: 4px 6px 0;
+        }
+
+        /* Composer */
+        .composer {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            padding: 14px 16px;
+            border-top: 1px solid var(--line);
+        }
+
+        .composer textarea {
+            flex: 1;
+            font: inherit;
+            color: var(--ink);
+            background: var(--surface-2);
+            border: 1px solid transparent;
+            border-radius: 22px;
+            padding: 11px 16px;
+            resize: none;
+            max-height: 140px;
+            line-height: 1.4;
+        }
+
+        .composer textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .send {
+            flex: none;
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--accent-ink);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            transition: transform .12s ease, opacity .12s ease;
+        }
+
+        .send:hover:not(:disabled) {
+            transform: scale(1.06);
+        }
+
+        .send:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        .send svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        button:focus-visible,
+        textarea:focus-visible,
+        input:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* Join dialog */
+        dialog {
+            border: 0;
+            border-radius: 20px;
+            padding: 28px;
+            width: min(92vw, 380px);
+            background: var(--surface);
+            color: var(--ink);
+            box-shadow: var(--shadow);
+        }
+
+        dialog::backdrop {
+            background: rgba(12, 19, 27, .55);
+            backdrop-filter: blur(4px);
+        }
+
+        dialog h2 {
+            font-family: "Bricolage Grotesque", sans-serif;
+            margin: 0 0 6px;
+            font-size: 1.5rem;
+            letter-spacing: -.01em;
+        }
+
+        dialog p {
+            margin: 0 0 18px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        dialog input {
+            width: 100%;
+            font: inherit;
+            color: var(--ink);
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+        }
+
+        dialog .join {
+            width: 100%;
+            font: inherit;
+            font-weight: 600;
+            background: var(--accent);
+            color: var(--accent-ink);
+            border: 0;
+            border-radius: 12px;
+            padding: 12px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 520px) {
+            body {
+                padding: 0;
+            }
+
+            .app {
+                border-radius: 0;
+                height: 100%;
+            }
+
+            .row {
+                max-width: 92%;
+            }
+
+            #youName {
+                display: none;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .feed {
+                scroll-behavior: auto;
+            }
+
+            .send {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="app">
+        <header class="top">
+            <div>
+                <h1>Chat room</h1>
+                <div class="status" id="status" data-state="connecting">
+                    <span class="dot"></span><span id="statusText">Connecting…</span>
+                </div>
+            </div>
+            <div class="who">
+                <span id="youName" class="name" style="margin:0"></span>
+                <div class="avatar" id="youAvatar" hidden></div>
+                <button type="button" id="changeName">Change name</button>
+            </div>
+        </header>
+
+        <section class="feed" id="feed" aria-live="polite">
+            <div class="empty" id="empty">
+                <strong>No messages yet</strong>
+                Write the first message below. Everyone in the room sees it instantly.
+            </div>
+        </section>
+
+        <form class="composer" id="composer" autocomplete="off">
+            <textarea id="input" rows="1" placeholder="Write a message" aria-label="Message" disabled></textarea>
+            <button class="send" id="send" type="submit" aria-label="Send message" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M22 2 11 13" />
+                    <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+                </svg>
+            </button>
+        </form>
+    </main>
+
+    <dialog id="joinDialog">
+        <form method="dialog" id="joinForm">
+            <h2>Join the chat</h2>
+            <p>Pick the name other people will see next to your messages.</p>
+            <input id="nameInput" type="text" maxlength="24" placeholder="Your name" required>
+            <button class="join" type="submit">Join chat</button>
+        </form>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <script>
+        (function () {
+            var NAME_KEY = 'chat.username';
+            var username = '';
+            var lastSender = null;
+
+            var feed = document.getElementById('feed');
+            var empty = document.getElementById('empty');
+            var input = document.getElementById('input');
+            var sendBtn = document.getElementById('send');
+            var statusEl = document.getElementById('status');
+            var statusText = document.getElementById('statusText');
+            var dialog = document.getElementById('joinDialog');
+            var nameInput = document.getElementById('nameInput');
+            var youName = document.getElementById('youName');
+            var youAvatar = document.getElementById('youAvatar');
+            var connected = false;
+
+            function store(get, value) {
+                try {
+                    if (get) { return localStorage.getItem(NAME_KEY); }
+                    localStorage.setItem(NAME_KEY, value);
+                } catch (e) { return null; }
+            }
+
+            function hue(name) {
+                var h = 0;
+                for (var i = 0; i < name.length; i++) { h = (h * 31 + name.charCodeAt(i)) % 360; }
+                return h;
+            }
+            function paintAvatar(node, name) {
+                node.textContent = (name.trim().charAt(0) || '?').toUpperCase();
+                node.style.background = 'hsl(' + hue(name) + ' 52% 42%)';
+            }
+
+            function setStatus(state, text) {
+                statusEl.setAttribute('data-state', state);
+                statusText.textContent = text;
+                connected = state === 'online';
+                refreshComposer();
+            }
+            function refreshComposer() {
+                var ok = connected && username !== '';
+                input.disabled = !ok;
+                sendBtn.disabled = !ok || input.value.trim() === '';
+            }
+
+            function setUser(name) {
+                username = name;
+                store(false, name);
+                youName.textContent = name;
+                youAvatar.hidden = false;
+                paintAvatar(youAvatar, name);
+                lastSender = null;
+                refreshComposer();
+                input.focus();
+            }
+
+            function addMessage(msg) {
+                var sender = msg.sender || 'Anonymous';
+                var mine = sender === username;
+                var first = sender !== lastSender;
+                lastSender = sender;
+                if (empty) { empty.remove(); empty = null; }
+
+                var row = document.createElement('div');
+                row.className = 'row' + (mine ? ' mine' : '') + (first ? ' first' : '');
+
+                if (first) {
+                    var av = document.createElement('div');
+                    av.className = 'avatar';
+                    paintAvatar(av, sender);
+                    row.appendChild(av);
+                } else {
+                    var sp = document.createElement('div');
+                    sp.className = 'spacer';
+                    row.appendChild(sp);
+                }
+
+                var col = document.createElement('div');
+                col.className = 'col';
+                if (first && !mine) {
+                    var nm = document.createElement('div');
+                    nm.className = 'name';
+                    nm.textContent = sender;
+                    col.appendChild(nm);
+                }
+                var bubble = document.createElement('div');
+                bubble.className = 'bubble';
+                bubble.setAttribute('dir', 'auto');
+                bubble.textContent = msg.content;
+                col.appendChild(bubble);
+
+                var tm = document.createElement('div');
+                tm.className = 'time';
+                tm.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                col.appendChild(tm);
+
+                row.appendChild(col);
+
+                var nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+                feed.appendChild(row);
+                if (nearBottom || mine) { feed.scrollTop = feed.scrollHeight; }
+            }
+
+            // WebSocket connection (endpoint /ws, same server)
+            var client = new StompJs.Client({
+                webSocketFactory: function () { return new SockJS('/ws'); },
+                reconnectDelay: 3000
+            });
+            client.beforeConnect = function () { setStatus('connecting', 'Connecting…'); };
+            client.onConnect = function () {
+                setStatus('online', 'Connected');
+                client.subscribe('/topic/messages', function (frame) {
+                    addMessage(JSON.parse(frame.body));
+                });
+            };
+            client.onWebSocketClose = function () { setStatus('offline', 'Offline, reconnecting…'); };
+            client.onStompError = function () { setStatus('offline', 'Connection error'); };
+            client.activate();
+
+            function send() {
+                var text = input.value.trim();
+                if (!text || !connected) { return; }
+                client.publish({
+                    destination: '/app/sendMessage',
+                    body: JSON.stringify({ sender: username, content: text })
+                });
+                input.value = '';
+                input.style.height = 'auto';
+                refreshComposer();
+            }
+
+            document.getElementById('composer').addEventListener('submit', function (e) {
+                e.preventDefault();
+                send();
+            });
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+            });
+            input.addEventListener('input', function () {
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+                refreshComposer();
+            });
+
+            // Name handling
+            function askName() {
+                nameInput.value = username;
+                dialog.showModal();
+                nameInput.focus();
+                nameInput.select();
+            }
+            document.getElementById('joinForm').addEventListener('submit', function () {
+                var n = nameInput.value.trim();
+                if (n) { setUser(n); }
+            });
+            dialog.addEventListener('cancel', function (e) { if (!username) { e.preventDefault(); } });
+            document.getElementById('changeName').addEventListener('click', askName);
+
+            var saved = store(true);
+            if (saved) { setUser(saved); } else { askName(); }
+        })();
+    </script>
+</body>
+
+</html>
